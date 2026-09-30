@@ -3,6 +3,7 @@ import { STORAGE_KEY, SHEET_NAME, SHEET_HEADER, emptyState, validateState, deriv
 const $ = selector => document.querySelector(selector);
 const dateFormat = new Intl.DateTimeFormat('zh-TW', { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 const API = 'https://sheets.googleapis.com/v4/spreadsheets';
+const DRIVE_API = 'https://www.googleapis.com/drive/v3/files';
 const SHEET_TITLE = '更換小記｜貓砂與隱形眼鏡';
 const SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const CLIENT_ID = '982138207228-4o8g32u2sqimdasrjcatu3h3j9qe766o.apps.googleusercontent.com';
@@ -52,7 +53,7 @@ function sheetUrl() { return `https://docs.google.com/spreadsheets/d/${encodeURI
 function renderSync() {
   let message;
   if (syncBusy) message = '正在與 Google 試算表同步…';
-  else if (syncError) message = `${syncError}；手機還有 ${state.pending.length} 筆待同步。`;
+  else if (syncError) message = `${syncError}${state.pending.length ? `；手機還有 ${state.pending.length} 筆待同步。` : ''}`;
   else if (!state.sheetId) message = `尚未指定試算表；請在「同步設定」貼入既有表網址，或首次使用時建立一份。${state.pending.length ? ` ${state.pending.length} 筆待同步。` : ''}`;
   else if (!accessToken) message = `尚未連結 Google；顯示手機副本${state.pending.length ? `，${state.pending.length} 筆待同步` : ''}。`;
   else if (state.pending.length) message = `${state.pending.length} 筆待同步，請按「重新同步」。`;
@@ -207,8 +208,8 @@ async function getToken() {
   });
 }
 
-async function apiRequest(path, { method = 'GET', body } = {}) {
-  const url = `${API}${path}`;
+async function apiRequest(path, { method = 'GET', body, base = API } = {}) {
+  const url = `${base}${path}`;
   const headers = { Authorization: `Bearer ${accessToken}`, ...(body ? { 'Content-Type': 'application/json' } : {}) };
   const payload = body ? JSON.stringify(body) : undefined;
   let response;
@@ -238,6 +239,11 @@ async function apiRequest(path, { method = 'GET', body } = {}) {
 
 function rangePath(range) {
   return `/${encodeURIComponent(state.sheetId)}/values/${encodeURIComponent(`${SHEET_NAME}!${range}`)}`;
+}
+
+async function checkSheetLocation() {
+  const file = await apiRequest(`/${encodeURIComponent(state.sheetId)}?fields=id,name,trashed`, { base: DRIVE_API });
+  if (file.trashed) throw new Error('這份試算表在 Google 雲端硬碟的垃圾桶。請從「同步設定」開啟試算表並還原，再按「重新同步」。');
 }
 
 async function createSheet() {
@@ -277,6 +283,7 @@ async function syncCloud() {
   renderSync();
   try {
     if (!state.sheetId) throw new Error('請先在「同步設定」貼入既有試算表網址，或明確選擇建立新表');
+    await checkSheetLocation();
     let remote = await readCloud();
     const remoteIds = new Set(remote.map(event => event.id));
     state.cloudEvents = uniqueEvents(remote);
