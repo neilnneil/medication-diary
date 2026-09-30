@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f6f5f0">
+  <meta name="description" content="私人用藥紀錄與今日待服提醒">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css">
+  <title>用藥小記</title>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="brand"><span class="brand-icon" aria-hidden="true">✳</span><span>用藥小記</span></div>
+      <button class="text-button" id="settingsButton" type="button">管理藥品</button>
+    </header>
+
+    <section class="hero" aria-labelledby="todayTitle">
+      <p class="eyebrow" id="todayDate"></p>
+      <h1 id="todayTitle">今天的用藥</h1>
+      <p class="hero-subtitle" id="todaySummary"></p>
+      <div class="progress" role="progressbar" aria-label="今天已完成用藥比例" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="progressFill"></span></div>
+    </section>
+
+    <div id="reminder" class="reminder hidden" role="status" aria-live="polite"></div>
+
+    <section aria-labelledby="scheduleTitle">
+      <div class="section-heading"><h2 id="scheduleTitle">今日清單</h2><span id="doseCount"></span></div>
+      <div id="doseList" class="dose-list"></div>
+    </section>
+
+    <section class="history-section" aria-labelledby="historyTitle">
+      <div class="section-heading"><h2 id="historyTitle">最近紀錄</h2></div>
+      <div id="historyList"></div>
+    </section>
+
+    <p class="footnote">紀錄僅儲存在這台裝置的瀏覽器。若用藥時間或劑量有疑問，請依醫囑確認；此工具不會建議補服。</p>
+  </main>
+
+  <dialog id="settingsDialog" class="sheet">
+    <div class="sheet-header"><div><p class="eyebrow">個人設定</p><h2>管理藥品</h2></div><button class="icon-button" id="closeSettings" type="button" aria-label="關閉">×</button></div>
+    <div id="medicineList" class="medicine-list"></div>
+    <button class="primary-button full" id="addMedicine" type="button">＋ 新增藥品</button>
+    <div class="settings-note">
+      <strong>關於提醒</strong>
+      <p>目前會在你開啟網頁時顯示逾時未記錄項目。iPhone 關閉網頁後的系統推播，還需要額外的推播伺服器；單靠 GitHub Pages 無法定時發送。</p>
+    </div>
+    <div class="data-actions"><button type="button" id="exportButton">匯出備份</button><button type="button" id="importButton">匯入備份</button><input id="importInput" type="file" accept="application/json,.json" hidden></div>
+  </dialog>
+
+  <dialog id="editorDialog" class="sheet small-sheet">
+    <form id="medicineForm">
+      <div class="sheet-header"><div><p class="eyebrow">用藥設定</p><h2 id="editorTitle">新增藥品</h2></div><button class="icon-button" id="closeEditor" type="button" aria-label="關閉">×</button></div>
+      <label class="field">藥品名稱<input id="medicineName" name="name" maxlength="60" autocomplete="off" required placeholder="例如：頭痛藥"></label>
+      <label class="field">服用時間<input id="medicineTime" name="time" type="time" required></label>
+      <fieldset class="frequency"><legend>服用日期</legend><label class="radio-row"><input type="radio" name="frequency" value="daily" checked>每天</label><label class="radio-row"><input type="radio" name="frequency" value="weekly">指定星期</label></fieldset>
+      <fieldset id="weekdaysField" class="weekdays hidden"><legend>選擇星期</legend><label><input type="checkbox" value="1">一</label><label><input type="checkbox" value="2">二</label><label><input type="checkbox" value="3">三</label><label><input type="checkbox" value="4">四</label><label><input type="checkbox" value="5">五</label><label><input type="checkbox" value="6">六</label><label><input type="checkbox" value="0">日</label></fieldset>
+      <p id="formError" class="form-error" role="alert"></p>
+      <button class="primary-button full" type="submit">儲存藥品</button>
+      <button id="deleteMedicine" class="danger-button full hidden" type="button">刪除此藥品</button>
+    </form>
+  </dialog>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "name": "用藥小記",
+  "short_name": "用藥小記",
+  "description": "記錄每天的用藥，查看今天尚未記錄的項目",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6f5f0",
+  "theme_color": "#f6f5f0",
+  "icons": [{ "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
