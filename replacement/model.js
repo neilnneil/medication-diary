@@ -31,6 +31,8 @@ export function validateEvent(event) {
     if (!validInstant(p.usedAt)) throw new Error('使用日期格式不正確');
   } else if (event.type === 'replace') {
     if (!validInstant(p.replacedAt) || !validInstant(p.usedAt)) throw new Error('更換日期格式不正確');
+  } else if (event.type === 'void') {
+    if (typeof p.targetId !== 'string' || !/^[\w-]{1,100}$/.test(p.targetId)) throw new Error('復原紀錄格式不正確');
   } else {
     throw new Error('未知的紀錄種類');
   }
@@ -56,9 +58,15 @@ export function uniqueEvents(events) {
   });
 }
 
+export function activeEvents(events) {
+  const unique = uniqueEvents(events);
+  const voided = new Set(unique.filter(event => event.type === 'void').map(event => event.payload.targetId));
+  return unique.filter(event => event.type !== 'void' && !voided.has(event.id));
+}
+
 export function deriveItems(events) {
   const items = new Map(DEFAULT_ITEMS.map(item => [item.id, { ...item, usedAt: null, replacedAt: null }]));
-  for (const event of uniqueEvents(events)) {
+  for (const event of activeEvents(events)) {
     let item = items.get(event.itemId);
     if (event.type === 'config') {
       if (!item) item = { id: event.itemId, usedAt: null, replacedAt: null };

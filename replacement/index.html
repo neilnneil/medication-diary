@@ -20,8 +20,9 @@
     <section class="hero">
       <p class="eyebrow">每月更換紀錄</p>
       <h1>貓砂與隱形眼鏡</h1>
-      <p>記下開始使用與實際更換的時間，依設定的週期算出下一次預計更換日。</p>
+      <p>更換完成時按一下「更換」，就會記下現在的時間並算出下次預計更換日。</p>
     </section>
+    <div id="undoNotice" class="undo-notice hidden" role="status" aria-live="polite"><span id="undoText"></span><button id="undoButton" type="button">復原</button></div>
 
     <section class="sync-card" aria-labelledby="syncTitle">
       <div><h2 id="syncTitle">Google 試算表同步</h2><p id="syncStatus" role="status" aria-live="polite"></p></div>
@@ -38,19 +39,8 @@
       <div id="historyList"></div>
     </section>
 
-    <p class="footnote">預計日期由開始使用時間與設定週期計算；實際更換時間請自行記錄。雲端同步完成前，紀錄仍只在這台裝置上。</p>
+    <p class="footnote">每次「更換」會記錄當下時間；下次日期由更換週期計算。雲端同步完成前，紀錄仍只在這台裝置上。</p>
   </main>
-
-  <dialog id="recordDialog" class="sheet small-sheet">
-    <form id="recordForm">
-      <div class="sheet-header"><div><p class="eyebrow" id="recordEyebrow"></p><h2 id="recordTitle"></h2></div><button class="icon-button" id="closeRecord" type="button" aria-label="關閉">×</button></div>
-      <label id="replacementField" class="field hidden">實際更換日期與時間<input id="replacedAt" type="datetime-local"></label>
-      <label class="field">開始使用日期與時間<input id="usedAt" type="datetime-local" required></label>
-      <p class="hint" id="recordHint"></p>
-      <p id="recordError" class="form-error" role="alert"></p>
-      <button class="primary-button full" type="submit">儲存紀錄</button>
-    </form>
-  </dialog>
 
   <dialog id="itemsDialog" class="sheet">
     <div class="sheet-header"><div><p class="eyebrow">週期設定</p><h2>管理項目</h2></div><button class="icon-button" id="closeItems" type="button" aria-label="關閉">×</button></div>
@@ -72,9 +62,9 @@
   <dialog id="cloudDialog" class="sheet small-sheet">
     <form id="cloudForm">
       <div class="sheet-header"><div><p class="eyebrow">私人雲端紀錄</p><h2>Google 試算表</h2></div><button class="icon-button" id="closeCloud" type="button" aria-label="關閉">×</button></div>
-      <p class="hint">用你的 Google 帳號連結私人試算表。首次連結會自動建立；往後重新開啟網頁時，按「連結 Google」讀取最新紀錄。</p>
-      <label class="field">試算表網址或 ID（首次建立可留空）<input id="sheetId" type="text" autocomplete="off" spellcheck="false" placeholder="首次連結後自動建立"></label>
-      <p class="hint">換手機時，填入原本的試算表網址或 ID，便能讀回紀錄。</p>
+      <p class="hint">連結 Google 後會先尋找這個帳號既有的「更換小記」試算表；找不到才建立一份。每次更換只會在同一份表新增一列。</p>
+      <label class="field">指定試算表網址或 ID（通常可留空）<input id="sheetId" type="text" autocomplete="off" spellcheck="false" placeholder="自動尋找既有試算表"></label>
+      <p class="hint">若帳號中有多份同名紀錄，請在此貼入要使用的試算表網址。</p>
       <p id="cloudError" class="form-error" role="alert"></p>
       <button class="primary-button full" type="submit">儲存同步設定</button>
       <a id="sheetLink" class="sheet-link hidden" target="_blank" rel="noopener noreferrer">開啟我的試算表 ↗</a>

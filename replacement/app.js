@@ -1,8 +1,10 @@
-import { STORAGE_KEY, SHEET_NAME, SHEET_HEADER, emptyState, validateState, deriveItems, addInterval, uniqueEvents, eventToRow, rowToEvent } from './model.js';
+import { STORAGE_KEY, SHEET_NAME, SHEET_HEADER, emptyState, validateState, deriveItems, activeEvents, addInterval, uniqueEvents, eventToRow, rowToEvent } from './model.js';
 
 const $ = selector => document.querySelector(selector);
 const dateFormat = new Intl.DateTimeFormat('zh-TW', { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 const API = 'https://sheets.googleapis.com/v4/spreadsheets';
+const DRIVE_API = 'https://www.googleapis.com/drive/v3/files';
+const SHEET_TITLE = '更換小記｜貓砂與隱形眼鏡';
 const SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const CLIENT_ID = '982138207228-4o8g32u2sqimdasrjcatu3h3j9qe766o.apps.googleusercontent.com';
 let state;
@@ -10,8 +12,7 @@ let accessToken = '';
 let syncBusy = false;
 let syncError = '';
 let editingItemId = null;
-let recordingItemId = null;
-let recordType = 'use';
+let undoEvent = null;
 
 try {
   const saved = localStorage.getItem(STORAGE_KEY);
@@ -32,17 +33,6 @@ function node(tag, className = '', value) {
   el.className = className;
   if (value !== undefined) el.textContent = value;
   return el;
-}
-
-function localInputValue(date = new Date()) {
-  const pad = n => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
-function toIso(input) {
-  const date = new Date(input);
-  if (!input || Number.isNaN(date.getTime())) throw new Error('請填寫有效的日期與時間。');
-  return date.toISOString();
 }
 
 function intervalText(item) {
@@ -84,29 +74,26 @@ function renderItems() {
     top.append(title, badge);
     const dates = node('div', 'dates');
     const useCell = node('div', 'date-cell');
-    useCell.append(node('small', '', '開始使用'), node('strong', '', item.usedAt ? dateFormat.format(new Date(item.usedAt)) : '尚未記錄'));
+    useCell.append(node('small', '', '這次開始使用'), node('strong', '', item.usedAt ? dateFormat.format(new Date(item.usedAt)) : '尚未記錄'));
     const replaceCell = node('div', 'date-cell');
     replaceCell.append(node('small', '', '上次更換'), node('strong', '', item.replacedAt ? dateFormat.format(new Date(item.replacedAt)) : '尚未記錄'));
     dates.append(useCell, replaceCell);
-    const next = node('div', 'due-date', due ? `下次預計更換：${dateFormat.format(due)}` : '記錄開始使用日期後，會顯示預計更換日。');
+    const next = node('div', 'due-date', due ? `下次預計更換：${dateFormat.format(due)}` : '按「更換」記錄現在，開始計算下次日期。');
     const actions = node('div', 'card-actions');
-    const useButton = node('button', 'secondary-button', item.usedAt ? '更正使用日期' : '記錄開始使用');
-    useButton.type = 'button';
-    useButton.addEventListener('click', () => openRecord(item.id, 'use'));
-    const replaceButton = node('button', 'primary-button', '記錄更換');
+    const replaceButton = node('button', 'primary-button', '更換');
     replaceButton.type = 'button';
-    replaceButton.addEventListener('click', () => openRecord(item.id, 'replace'));
-    actions.append(useButton, replaceButton);
+    replaceButton.addEventListener('click', () => recordReplacement(item));
+    actions.append(replaceButton);
     card.append(top, dates, next, actions);
     list.append(card);
   }
 }
 
 function renderHistory() {
-  const events = allEvents().filter(event => event.type === 'use' || event.type === 'replace').reverse().slice(0, 30);
+  const events = activeEvents(allEvents()).filter(event => event.type === 'use' || event.type === 'replace').reverse().slice(0, 30);
   const list = $('#historyList');
   list.replaceChildren();
-  if (!events.length) { list.append(node('div', 'empty', '還沒有使用或更換紀錄。')); return; }
+  if (!events.length) { list.append(node('div', 'empty', '還沒有更換紀錄。')); return; }
   const names = new Map(deriveItems(allEvents()).map(item => [item.id, item.name]));
   for (const event of events) {
     const row = node('div', 'history-row');
@@ -138,30 +125,20 @@ function render() { renderSync(); renderItems(); renderHistory(); renderSettings
 function addEvent(type, itemId, payload) {
   const event = { id: crypto.randomUUID(), createdAt: new Date().toISOString(), type, itemId, payload };
   state.pending.push(event);
-  if (!save()) { state.pending.pop(); return false; }
+  if (!save()) { state.pending.pop(); return null; }
   syncError = '';
   render();
   if (accessToken) syncCloud();
-  return true;
+  return event;
 }
 
-function openRecord(itemId, type) {
-  recordingItemId = itemId;
-  recordType = type;
-  const item = deriveItems(allEvents()).find(row => row.id === itemId);
-  $('#recordForm').reset();
-  $('#recordError').textContent = '';
-  $('#recordTitle').textContent = `${type === 'replace' ? '記錄更換' : '記錄使用'} · ${item.name}`;
-  $('#recordEyebrow').textContent = type === 'replace' ? '實際更換時間' : '開始使用時間';
-  $('#replacementField').classList.toggle('hidden', type !== 'replace');
-  $('#replacedAt').required = type === 'replace';
-  $('#replacedAt').value = localInputValue();
-  $('#replacedAt').dataset.previous = $('#replacedAt').value;
-  $('#usedAt').value = type === 'use' && item.usedAt ? localInputValue(new Date(item.usedAt)) : localInputValue();
-  $('#recordHint').textContent = type === 'replace'
-    ? '更換後若立刻開始使用新用品，兩個時間保持相同即可。'
-    : '再次儲存使用日期會更新目前週期；先前紀錄仍保留。';
-  $('#recordDialog').showModal();
+function recordReplacement(item) {
+  const now = new Date().toISOString();
+  const event = addEvent('replace', item.id, { replacedAt: now, usedAt: now });
+  if (!event) return;
+  undoEvent = event;
+  $('#undoText').textContent = `已記錄「${item.name}」更換時間：${dateFormat.format(new Date(now))}`;
+  $('#undoNotice').classList.remove('hidden');
 }
 
 function openItem(itemId = null) {
@@ -201,8 +178,8 @@ async function getToken() {
   });
 }
 
-async function apiRequest(path, { method = 'GET', body } = {}) {
-  const url = `${API}${path}`;
+async function apiRequest(path, { method = 'GET', body, base = API } = {}) {
+  const url = `${base}${path}`;
   const headers = { Authorization: `Bearer ${accessToken}`, ...(body ? { 'Content-Type': 'application/json' } : {}) };
   const payload = body ? JSON.stringify(body) : undefined;
   let response;
@@ -217,7 +194,7 @@ async function apiRequest(path, { method = 'GET', body } = {}) {
         status: request.status,
         json: async () => JSON.parse(request.responseText)
       });
-      request.onerror = () => reject(new Error('無法連接 Google 試算表 API，請檢查網路或改用 Safari／Chrome。'));
+      request.onerror = () => reject(new Error('無法連接 Google API，請檢查網路或改用 Safari／Chrome。'));
       request.send(payload);
     });
   }
@@ -225,7 +202,7 @@ async function apiRequest(path, { method = 'GET', body } = {}) {
     if (response.status === 401 || response.status === 403) accessToken = '';
     let detail = '';
     try { detail = (await response.json()).error?.message || ''; } catch { /* Keep status. */ }
-    throw new Error(response.status === 401 ? 'Google 授權已過期，請再次連結' : `Google 試算表回應 ${response.status}${detail ? `：${detail}` : ''}`);
+    throw new Error(response.status === 401 ? 'Google 授權已過期，請再次連結' : `Google API 回應 ${response.status}${detail ? `：${detail}` : ''}`);
   }
   return response.json();
 }
@@ -236,12 +213,25 @@ function rangePath(range) {
 
 async function createSheet() {
   const result = await apiRequest('', { method: 'POST', body: {
-    properties: { title: '更換小記｜貓砂與隱形眼鏡' },
+    properties: { title: SHEET_TITLE },
     sheets: [{ properties: { title: SHEET_NAME, gridProperties: { frozenRowCount: 1 } } }]
   } });
   state.sheetId = result.spreadsheetId;
   if (!save()) throw new Error('試算表已建立，但無法將網址存到手機。請立即從 Google 雲端硬碟找回「更換小記」試算表。');
   await apiRequest(`${rangePath('A1:E1')}?valueInputOption=RAW`, { method: 'PUT', body: { values: [SHEET_HEADER] } });
+}
+
+async function findOrCreateSheet() {
+  const q = `name = '${SHEET_TITLE}' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false`;
+  const params = new URLSearchParams({ q, fields: 'nextPageToken,files(id,name)', pageSize: '100' });
+  const result = await apiRequest(`?${params}`, { base: DRIVE_API });
+  const files = result.files || [];
+  if (files.length > 1 || result.nextPageToken) {
+    throw new Error('找到多份「更換小記」試算表。請在「同步設定」貼入要使用的試算表網址');
+  }
+  if (!files.length) return createSheet();
+  state.sheetId = files[0].id;
+  if (!save()) throw new Error('找到既有試算表，但無法將網址存到手機。');
 }
 
 async function readCloud() {
@@ -270,7 +260,7 @@ async function syncCloud() {
   syncError = '';
   renderSync();
   try {
-    if (!state.sheetId) await createSheet();
+    if (!state.sheetId) await findOrCreateSheet();
     let remote = await readCloud();
     const remoteIds = new Set(remote.map(event => event.id));
     state.cloudEvents = uniqueEvents(remote);
@@ -298,7 +288,13 @@ $('#settingsButton').addEventListener('click', () => $('#itemsDialog').showModal
 $('#closeItems').addEventListener('click', () => $('#itemsDialog').close());
 $('#addItem').addEventListener('click', () => openItem());
 $('#closeItem').addEventListener('click', () => $('#itemDialog').close());
-$('#closeRecord').addEventListener('click', () => $('#recordDialog').close());
+$('#undoButton').addEventListener('click', () => {
+  if (!undoEvent) return;
+  if (addEvent('void', undoEvent.itemId, { targetId: undoEvent.id })) {
+    undoEvent = null;
+    $('#undoNotice').classList.add('hidden');
+  }
+});
 $('#cloudSettingsButton').addEventListener('click', () => {
   $('#cloudError').textContent = '';
   $('#sheetId').value = state.sheetId;
@@ -306,21 +302,6 @@ $('#cloudSettingsButton').addEventListener('click', () => {
   $('#cloudDialog').showModal();
 });
 $('#closeCloud').addEventListener('click', () => $('#cloudDialog').close());
-
-$('#recordForm').addEventListener('submit', event => {
-  event.preventDefault();
-  try {
-    const usedAt = toIso($('#usedAt').value);
-    const payload = recordType === 'replace' ? { replacedAt: toIso($('#replacedAt').value), usedAt } : { usedAt };
-    if (recordType === 'replace' && new Date(usedAt) < new Date(payload.replacedAt)) throw new Error('開始使用時間不可早於更換時間。');
-    if (addEvent(recordType, recordingItemId, payload)) $('#recordDialog').close();
-  } catch (error) { $('#recordError').textContent = error.message; }
-});
-
-$('#replacedAt').addEventListener('change', () => {
-  if ($('#usedAt').value === $('#replacedAt').dataset.previous) $('#usedAt').value = $('#replacedAt').value;
-  $('#replacedAt').dataset.previous = $('#replacedAt').value;
-});
 
 $('#itemForm').addEventListener('submit', event => {
   event.preventDefault();

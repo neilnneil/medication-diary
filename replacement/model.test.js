@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { addInterval, deriveItems, eventToRow, rowToEvent, uniqueEvents } from './model.js';
+import { activeEvents, addInterval, deriveItems, eventToRow, rowToEvent, uniqueEvents } from './model.js';
 
 test('one calendar month clamps at the end of February', () => {
   assert.equal(addInterval('2025-01-31T10:00:00+08:00', 1, 'months').getDate(), 28);
@@ -24,4 +24,13 @@ test('interval settings may be adjusted without losing prior events', () => {
   const item = deriveItems([config]).find(value => value.id === 'contact-lenses');
   assert.equal(item.intervalValue, 2);
   assert.equal(item.intervalUnit, 'weeks');
+});
+
+test('undoing an accidental replacement restores the previous cycle', () => {
+  const use = { id: 'used1', createdAt: '2026-01-01T00:00:00Z', type: 'use', itemId: 'cat-litter', payload: { usedAt: '2026-01-01T00:00:00Z' } };
+  const replace = { id: 'change1', createdAt: '2026-02-01T00:00:00Z', type: 'replace', itemId: 'cat-litter', payload: { replacedAt: '2026-02-01T00:00:00Z', usedAt: '2026-02-01T00:00:00Z' } };
+  const undo = { id: 'undo1', createdAt: '2026-02-01T00:01:00Z', type: 'void', itemId: 'cat-litter', payload: { targetId: 'change1' } };
+  assert.equal(deriveItems([use, replace, undo]).find(item => item.id === 'cat-litter').usedAt, use.payload.usedAt);
+  assert.deepEqual(activeEvents([use, replace, undo]), [use]);
+  assert.deepEqual(rowToEvent(eventToRow(undo)), undo);
 });
