@@ -1,4 +1,4 @@
-import { STORAGE_KEY, SHEET_NAME, SHEET_HEADER, emptyState, validateState, deriveItems, activeEvents, addInterval, uniqueEvents, eventToRow, rowToEvent } from './model.js';
+import { STORAGE_KEY, SHEET_NAME, SHEET_HEADER, emptyState, validateState, deriveItems, activeEvents, addInterval, uniqueEvents, eventToRow, rowToEvent } from './model.js?v=3';
 
 const $ = selector => document.querySelector(selector);
 const dateFormat = new Intl.DateTimeFormat('zh-TW', { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
