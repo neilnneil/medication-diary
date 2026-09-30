@@ -207,7 +207,7 @@ async function apiRequest(path, { method = 'GET', body } = {}) {
     body: body ? JSON.stringify(body) : undefined
   });
   if (!response.ok) {
-    if (response.status === 401) accessToken = '';
+    if (response.status === 401 || response.status === 403) accessToken = '';
     let detail = '';
     try { detail = (await response.json()).error?.message || ''; } catch { /* Keep status. */ }
     throw new Error(response.status === 401 ? 'Google 授權已過期，請再次連結' : `Google 試算表回應 ${response.status}${detail ? `：${detail}` : ''}`);
