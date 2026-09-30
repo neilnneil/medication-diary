@@ -72,14 +72,12 @@
   <dialog id="cloudDialog" class="sheet small-sheet">
     <form id="cloudForm">
       <div class="sheet-header"><div><p class="eyebrow">私人雲端紀錄</p><h2>Google 試算表</h2></div><button class="icon-button" id="closeCloud" type="button" aria-label="關閉">×</button></div>
-      <p class="hint">首次使用，請依下方說明建立 Google OAuth 網頁用戶端。此處只需填「用戶端 ID」，請勿填用戶端密鑰。</p>
-      <label class="field">OAuth 用戶端 ID<input id="clientId" type="text" autocomplete="off" spellcheck="false" placeholder="...apps.googleusercontent.com"></label>
+      <p class="hint">用你的 Google 帳號連結私人試算表。首次連結會自動建立；往後重新開啟網頁時，按「連結 Google」讀取最新紀錄。</p>
       <label class="field">試算表網址或 ID（首次建立可留空）<input id="sheetId" type="text" autocomplete="off" spellcheck="false" placeholder="首次連結後自動建立"></label>
       <p class="hint">換手機時，填入原本的試算表網址或 ID，便能讀回紀錄。</p>
       <p id="cloudError" class="form-error" role="alert"></p>
       <button class="primary-button full" type="submit">儲存同步設定</button>
       <a id="sheetLink" class="sheet-link hidden" target="_blank" rel="noopener noreferrer">開啟我的試算表 ↗</a>
-      <details class="setup-help"><summary>首次設定教學</summary><ol><li>在 Google Cloud 建立專案並啟用 Google Sheets API。</li><li>設定 OAuth 同意畫面；個人 Google 帳號選「外部」，將自己的 Google 帳號加入測試使用者。</li><li>建立「網頁應用程式」OAuth 用戶端，在「已授權的 JavaScript 來源」加入 <code>https://neilnneil.github.io</code>。</li><li>將用戶端 ID 貼到上方，儲存後按「連結 Google」。首次連結會自動在你的 Google 雲端硬碟建立試算表。</li></ol><p>若要在本機測試，可另外加入 <code>http://localhost:8765</code> 作為授權來源。</p></details>
     </form>
   </dialog>
 </body>

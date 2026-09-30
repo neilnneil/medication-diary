@@ -4,6 +4,7 @@ const $ = selector => document.querySelector(selector);
 const dateFormat = new Intl.DateTimeFormat('zh-TW', { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 const API = 'https://sheets.googleapis.com/v4/spreadsheets';
 const SCOPE = 'https://www.googleapis.com/auth/drive.file';
+const CLIENT_ID = '982138207228-4o8g32u2sqimdasrjcatu3h3j9qe766o.apps.googleusercontent.com';
 let state;
 let accessToken = '';
 let syncBusy = false;
@@ -19,6 +20,7 @@ try {
   state = emptyState();
   alert('無法讀取手機副本。請先不要建立新紀錄，並檢查瀏覽器網站資料。');
 }
+state.clientId = CLIENT_ID;
 
 function save() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); return true; }
@@ -52,8 +54,7 @@ function allEvents() { return uniqueEvents([...state.cloudEvents, ...state.pendi
 
 function renderSync() {
   let message;
-  if (!state.clientId) message = `尚未設定 Google 連結；目前只顯示手機副本${state.pending.length ? `，${state.pending.length} 筆待同步` : ''}。`;
-  else if (syncBusy) message = '正在與 Google 試算表同步…';
+  if (syncBusy) message = '正在與 Google 試算表同步…';
   else if (syncError) message = `${syncError}；手機還有 ${state.pending.length} 筆待同步。`;
   else if (!accessToken) message = `尚未連結 Google；顯示手機副本${state.pending.length ? `，${state.pending.length} 筆待同步` : ''}。`;
   else if (state.pending.length) message = `${state.pending.length} 筆待同步，請按「重新同步」。`;
@@ -191,7 +192,7 @@ async function getToken() {
   if (!googleReady()) throw new Error('Google 登入元件尚未載入。請確認網路後重試。');
   return new Promise((resolve, reject) => {
     const client = google.accounts.oauth2.initTokenClient({
-      client_id: state.clientId,
+      client_id: CLIENT_ID,
       scope: SCOPE,
       callback: response => response?.access_token ? resolve(response.access_token) : reject(new Error(response?.error || 'Google 授權未完成')),
       error_callback: error => reject(new Error(error?.message || error?.type || 'Google 登入視窗未完成'))
@@ -286,7 +287,6 @@ $('#closeItem').addEventListener('click', () => $('#itemDialog').close());
 $('#closeRecord').addEventListener('click', () => $('#recordDialog').close());
 $('#cloudSettingsButton').addEventListener('click', () => {
   $('#cloudError').textContent = '';
-  $('#clientId').value = state.clientId;
   $('#sheetId').value = state.sheetId;
   renderSync();
   $('#cloudDialog').showModal();
@@ -329,14 +329,10 @@ $('#archiveItem').addEventListener('click', () => {
 $('#cloudForm').addEventListener('submit', event => {
   event.preventDefault();
   try {
-    const clientId = $('#clientId').value.trim();
-    if (!/^[\w.-]+\.apps\.googleusercontent\.com$/.test(clientId)) throw new Error('請填入有效的 OAuth 網頁用戶端 ID。');
     const sheetId = parseSheetId($('#sheetId').value);
     if (sheetId !== state.sheetId && state.pending.length && state.sheetId) throw new Error('目前仍有待同步紀錄，請先同步完成再更換試算表。');
     const previous = structuredClone(state);
-    state.clientId = clientId;
     if (sheetId !== state.sheetId) { state.sheetId = sheetId; state.cloudEvents = []; accessToken = ''; }
-    if (clientId !== previous.clientId) accessToken = '';
     if (!save()) { state = previous; return; }
     syncError = '';
     $('#cloudDialog').close();
@@ -345,7 +341,6 @@ $('#cloudForm').addEventListener('submit', event => {
 });
 
 $('#connectButton').addEventListener('click', async () => {
-  if (!state.clientId) { $('#cloudSettingsButton').click(); return; }
   try {
     if (!accessToken) accessToken = await getToken();
     await syncCloud();
