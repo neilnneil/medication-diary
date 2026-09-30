@@ -62,11 +62,11 @@
   <dialog id="cloudDialog" class="sheet small-sheet">
     <form id="cloudForm">
       <div class="sheet-header"><div><p class="eyebrow">私人雲端紀錄</p><h2>Google 試算表</h2></div><button class="icon-button" id="closeCloud" type="button" aria-label="關閉">×</button></div>
-      <p class="hint">連結 Google 後會先尋找這個帳號既有的「更換小記」試算表；找不到才建立一份。每次更換只會在同一份表新增一列。</p>
-      <label class="field">指定試算表網址或 ID（通常可留空）<input id="sheetId" type="text" autocomplete="off" spellcheck="false" placeholder="自動尋找既有試算表"></label>
-      <p class="hint">若帳號中有多份同名紀錄，請在此貼入要使用的試算表網址。</p>
+      <p class="hint">每次更換只會在同一份試算表新增一列。換手機時，請貼入原本的試算表網址，再連結同一個 Google 帳號。</p>
+      <label class="field">既有試算表網址或 ID<input id="sheetId" type="text" autocomplete="off" spellcheck="false" placeholder="貼上原本的試算表網址"></label>
       <p id="cloudError" class="form-error" role="alert"></p>
       <button class="primary-button full" type="submit">儲存同步設定</button>
+      <button id="createSheetButton" class="secondary-button full" type="button">第一次使用：建立新的試算表</button>
       <a id="sheetLink" class="sheet-link hidden" target="_blank" rel="noopener noreferrer">開啟我的試算表 ↗</a>
     </form>
   </dialog>

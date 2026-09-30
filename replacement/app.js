@@ -3,7 +3,6 @@ import { STORAGE_KEY, SHEET_NAME, SHEET_HEADER, emptyState, validateState, deriv
 const $ = selector => document.querySelector(selector);
 const dateFormat = new Intl.DateTimeFormat('zh-TW', { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 const API = 'https://sheets.googleapis.com/v4/spreadsheets';
-const DRIVE_API = 'https://www.googleapis.com/drive/v3/files';
 const SHEET_TITLE = '更換小記｜貓砂與隱形眼鏡';
 const SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const CLIENT_ID = '982138207228-4o8g32u2sqimdasrjcatu3h3j9qe766o.apps.googleusercontent.com';
@@ -46,6 +45,7 @@ function renderSync() {
   let message;
   if (syncBusy) message = '正在與 Google 試算表同步…';
   else if (syncError) message = `${syncError}；手機還有 ${state.pending.length} 筆待同步。`;
+  else if (!state.sheetId) message = `尚未指定試算表；請在「同步設定」貼入既有表網址，或首次使用時建立一份。${state.pending.length ? ` ${state.pending.length} 筆待同步。` : ''}`;
   else if (!accessToken) message = `尚未連結 Google；顯示手機副本${state.pending.length ? `，${state.pending.length} 筆待同步` : ''}。`;
   else if (state.pending.length) message = `${state.pending.length} 筆待同步，請按「重新同步」。`;
   else message = '已與私人 Google 試算表同步。';
@@ -53,6 +53,7 @@ function renderSync() {
   $('#connectButton').textContent = accessToken ? '重新同步' : '連結 Google';
   $('#connectButton').disabled = syncBusy;
   $('#sheetLink').classList.toggle('hidden', !state.sheetId);
+  $('#createSheetButton').classList.toggle('hidden', Boolean(state.sheetId));
   if (state.sheetId) $('#sheetLink').href = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(state.sheetId)}/edit`;
 }
 
@@ -178,8 +179,8 @@ async function getToken() {
   });
 }
 
-async function apiRequest(path, { method = 'GET', body, base = API } = {}) {
-  const url = `${base}${path}`;
+async function apiRequest(path, { method = 'GET', body } = {}) {
+  const url = `${API}${path}`;
   const headers = { Authorization: `Bearer ${accessToken}`, ...(body ? { 'Content-Type': 'application/json' } : {}) };
   const payload = body ? JSON.stringify(body) : undefined;
   let response;
@@ -221,19 +222,6 @@ async function createSheet() {
   await apiRequest(`${rangePath('A1:E1')}?valueInputOption=RAW`, { method: 'PUT', body: { values: [SHEET_HEADER] } });
 }
 
-async function findOrCreateSheet() {
-  const q = `name = '${SHEET_TITLE}' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false`;
-  const params = new URLSearchParams({ q, fields: 'nextPageToken,files(id,name)', pageSize: '100' });
-  const result = await apiRequest(`?${params}`, { base: DRIVE_API });
-  const files = result.files || [];
-  if (files.length > 1 || result.nextPageToken) {
-    throw new Error('找到多份「更換小記」試算表。請在「同步設定」貼入要使用的試算表網址');
-  }
-  if (!files.length) return createSheet();
-  state.sheetId = files[0].id;
-  if (!save()) throw new Error('找到既有試算表，但無法將網址存到手機。');
-}
-
 async function readCloud() {
   const result = await apiRequest(rangePath('A1:E'));
   const rows = result.values || [];
@@ -260,7 +248,7 @@ async function syncCloud() {
   syncError = '';
   renderSync();
   try {
-    if (!state.sheetId) await findOrCreateSheet();
+    if (!state.sheetId) throw new Error('請先在「同步設定」貼入既有試算表網址，或明確選擇建立新表');
     let remote = await readCloud();
     const remoteIds = new Set(remote.map(event => event.id));
     state.cloudEvents = uniqueEvents(remote);
@@ -302,6 +290,23 @@ $('#cloudSettingsButton').addEventListener('click', () => {
   $('#cloudDialog').showModal();
 });
 $('#closeCloud').addEventListener('click', () => $('#cloudDialog').close());
+$('#createSheetButton').addEventListener('click', async () => {
+  if (state.sheetId || syncBusy) return;
+  if (!confirm('這會在目前選擇的 Google 帳號建立一份新的私人試算表。若你已有更換小記的試算表，請取消並貼入原表網址。確定要建立新表嗎？')) return;
+  $('#createSheetButton').disabled = true;
+  $('#cloudError').textContent = '';
+  try {
+    if (!accessToken) accessToken = await getToken();
+    await createSheet();
+    $('#cloudDialog').close();
+    await syncCloud();
+  } catch (error) {
+    $('#cloudError').textContent = error.message || '建立試算表失敗';
+  } finally {
+    $('#createSheetButton').disabled = false;
+    renderSync();
+  }
+});
 
 $('#itemForm').addEventListener('submit', event => {
   event.preventDefault();
@@ -325,6 +330,7 @@ $('#cloudForm').addEventListener('submit', event => {
   event.preventDefault();
   try {
     const sheetId = parseSheetId($('#sheetId').value);
+    if (!sheetId) throw new Error('請貼入既有試算表網址；第一次使用則按「建立新的試算表」。');
     if (sheetId !== state.sheetId && state.pending.length && state.sheetId) throw new Error('目前仍有待同步紀錄，請先同步完成再更換試算表。');
     const previous = structuredClone(state);
     if (sheetId !== state.sheetId) { state.sheetId = sheetId; state.cloudEvents = []; accessToken = ''; }
@@ -337,6 +343,12 @@ $('#cloudForm').addEventListener('submit', event => {
 
 $('#connectButton').addEventListener('click', async () => {
   try {
+    if (!state.sheetId) {
+      $('#cloudError').textContent = '請貼入既有試算表網址；第一次使用則按「建立新的試算表」。';
+      $('#sheetId').value = '';
+      $('#cloudDialog').showModal();
+      return;
+    }
     if (!accessToken) accessToken = await getToken();
     await syncCloud();
   } catch (error) { syncError = error.message || '連結失敗'; renderSync(); }
