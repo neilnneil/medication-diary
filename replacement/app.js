@@ -202,11 +202,25 @@ async function getToken() {
 }
 
 async function apiRequest(path, { method = 'GET', body } = {}) {
-  const response = await fetch(`${API}${path}`, {
-    method,
-    headers: { Authorization: `Bearer ${accessToken}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
-    body: body ? JSON.stringify(body) : undefined
-  });
+  const url = `${API}${path}`;
+  const headers = { Authorization: `Bearer ${accessToken}`, ...(body ? { 'Content-Type': 'application/json' } : {}) };
+  const payload = body ? JSON.stringify(body) : undefined;
+  let response;
+  try { response = await fetch(url, { method, headers, body: payload }); }
+  catch {
+    response = await new Promise((resolve, reject) => {
+      const request = new XMLHttpRequest();
+      request.open(method, url);
+      for (const [key, value] of Object.entries(headers)) request.setRequestHeader(key, value);
+      request.onload = () => resolve({
+        ok: request.status >= 200 && request.status < 300,
+        status: request.status,
+        json: async () => JSON.parse(request.responseText)
+      });
+      request.onerror = () => reject(new Error('無法連接 Google 試算表 API，請檢查網路或改用 Safari／Chrome。'));
+      request.send(payload);
+    });
+  }
   if (!response.ok) {
     if (response.status === 401 || response.status === 403) accessToken = '';
     let detail = '';
