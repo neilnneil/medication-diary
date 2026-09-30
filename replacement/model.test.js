@@ -34,3 +34,17 @@ test('undoing an accidental replacement restores the previous cycle', () => {
   assert.deepEqual(activeEvents([use, replace, undo]), [use]);
   assert.deepEqual(rowToEvent(eventToRow(undo)), undo);
 });
+
+test('correcting a replacement changes its timestamp and next due date', () => {
+  const replace = { id: 'change1', createdAt: '2026-09-30T07:22:00Z', type: 'replace', itemId: 'cat-litter', payload: { replacedAt: '2026-09-30T07:22:00Z', usedAt: '2026-09-30T07:22:00Z' } };
+  const correction = { id: 'fix1', createdAt: '2026-09-30T08:00:00Z', type: 'correct', itemId: 'cat-litter', payload: { targetId: 'change1', occurredAt: '2026-09-29T05:00:00Z' } };
+  const item = deriveItems([replace, correction]).find(value => value.id === 'cat-litter');
+  assert.equal(item.recordId, 'change1');
+  assert.equal(item.usedAt, correction.payload.occurredAt);
+  assert.equal(item.replacedAt, correction.payload.occurredAt);
+  assert.equal(addInterval(item.usedAt, 1, 'months').toISOString(), '2026-10-29T05:00:00.000Z');
+  assert.equal(activeEvents([replace, correction])[0].payload.usedAt, correction.payload.occurredAt);
+  assert.deepEqual(rowToEvent(eventToRow(correction)), correction);
+  const secondCorrection = { ...correction, id: 'fix2', payload: { ...correction.payload, occurredAt: '2026-09-28T05:00:00Z' } };
+  assert.equal(deriveItems([replace, correction, secondCorrection]).find(value => value.id === 'cat-litter').usedAt, secondCorrection.payload.occurredAt);
+});

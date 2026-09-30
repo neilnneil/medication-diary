@@ -6,9 +6,9 @@
   <meta name="theme-color" content="#f3f5f0">
   <meta name="description" content="貓砂與隱形眼鏡的使用及更換紀錄">
   <title>更換小記</title>
-  <link rel="stylesheet" href="./styles.css?v=3">
+  <link rel="stylesheet" href="./styles.css?v=4">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script type="module" src="./app.js?v=3"></script>
+  <script type="module" src="./app.js?v=4"></script>
 </head>
 <body>
   <main class="app">
@@ -59,11 +59,23 @@
     </form>
   </dialog>
 
+  <dialog id="editRecordDialog" class="sheet small-sheet">
+    <form id="editRecordForm">
+      <div class="sheet-header"><div><p class="eyebrow">更正紀錄</p><h2 id="editRecordTitle"></h2></div><button class="icon-button" id="closeEditRecord" type="button" aria-label="關閉">×</button></div>
+      <label class="field">更換／開始使用時間<input id="editRecordTime" type="datetime-local" required></label>
+      <p class="hint">儲存後會重新計算下次更換日期；更正也會同步到原本的試算表。</p>
+      <p id="editRecordError" class="form-error" role="alert"></p>
+      <button class="primary-button full" type="submit">儲存修改</button>
+    </form>
+  </dialog>
+
   <dialog id="cloudDialog" class="sheet small-sheet">
     <form id="cloudForm">
       <div class="sheet-header"><div><p class="eyebrow">私人雲端紀錄</p><h2>Google 試算表</h2></div><button class="icon-button" id="closeCloud" type="button" aria-label="關閉">×</button></div>
-      <p class="hint">每次更換只會在同一份試算表新增一列。換手機時，請貼入原本的試算表網址，再連結同一個 Google 帳號。</p>
-      <label class="field">既有試算表網址或 ID<input id="sheetId" type="text" autocomplete="off" spellcheck="false" placeholder="貼上原本的試算表網址"></label>
+      <p class="hint">每次更換只會在同一份試算表新增一列。換手機時，請複製這裡的網址，在新手機貼上後連結同一個 Google 帳號。網址中的長字串是檔案 ID。</p>
+      <label class="field">試算表網址（換手機時貼上）<input id="sheetId" type="text" autocomplete="off" spellcheck="false" placeholder="貼上原本的試算表網址"></label>
+      <button id="copySheetButton" class="secondary-button full hidden" type="button">複製試算表網址</button>
+      <p id="copySheetStatus" class="hint" role="status" aria-live="polite"></p>
       <p id="cloudError" class="form-error" role="alert"></p>
       <button class="primary-button full" type="submit">儲存同步設定</button>
       <button id="createSheetButton" class="secondary-button full hidden" type="button">第一次使用：建立新的試算表</button>

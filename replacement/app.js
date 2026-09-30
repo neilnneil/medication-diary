@@ -1,4 +1,4 @@
-import { STORAGE_KEY, SHEET_NAME, SHEET_HEADER, emptyState, validateState, deriveItems, activeEvents, addInterval, uniqueEvents, eventToRow, rowToEvent } from './model.js?v=3';
+import { STORAGE_KEY, SHEET_NAME, SHEET_HEADER, emptyState, validateState, deriveItems, activeEvents, addInterval, uniqueEvents, eventToRow, rowToEvent } from './model.js?v=4';
 
 const $ = selector => document.querySelector(selector);
 const dateFormat = new Intl.DateTimeFormat('zh-TW', { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -11,6 +11,7 @@ let accessToken = '';
 let syncBusy = false;
 let syncError = '';
 let editingItemId = null;
+let editingRecordId = null;
 let undoEvent = null;
 
 try {
@@ -34,12 +35,19 @@ function node(tag, className = '', value) {
   return el;
 }
 
+function localInputValue(iso) {
+  const date = new Date(iso);
+  const pad = value => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 function intervalText(item) {
   const unit = { months: '個月', weeks: '週', days: '天' }[item.intervalUnit];
   return `每 ${item.intervalValue} ${unit}更換一次`;
 }
 
 function allEvents() { return uniqueEvents([...state.cloudEvents, ...state.pending]); }
+function sheetUrl() { return `https://docs.google.com/spreadsheets/d/${encodeURIComponent(state.sheetId)}/edit`; }
 
 function renderSync() {
   let message;
@@ -53,8 +61,9 @@ function renderSync() {
   $('#connectButton').textContent = accessToken ? '重新同步' : '連結 Google';
   $('#connectButton').disabled = syncBusy;
   $('#sheetLink').classList.toggle('hidden', !state.sheetId);
+  $('#copySheetButton').classList.toggle('hidden', !state.sheetId);
   $('#createSheetButton').classList.toggle('hidden', Boolean(state.sheetId));
-  if (state.sheetId) $('#sheetLink').href = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(state.sheetId)}/edit`;
+  if (state.sheetId) $('#sheetLink').href = sheetUrl();
 }
 
 function renderItems() {
@@ -74,11 +83,16 @@ function renderItems() {
       !due ? '尚未開始' : daysLeft < 0 ? `逾期 ${-daysLeft} 天` : daysLeft === 0 ? '今天到期' : `還有 ${daysLeft} 天`);
     top.append(title, badge);
     const dates = node('div', 'dates');
-    const useCell = node('div', 'date-cell');
-    useCell.append(node('small', '', '這次開始使用'), node('strong', '', item.usedAt ? dateFormat.format(new Date(item.usedAt)) : '尚未記錄'));
-    const replaceCell = node('div', 'date-cell');
-    replaceCell.append(node('small', '', '上次更換'), node('strong', '', item.replacedAt ? dateFormat.format(new Date(item.replacedAt)) : '尚未記錄'));
-    dates.append(useCell, replaceCell);
+    const dateCell = node('div', 'date-cell');
+    dateCell.append(node('small', '', '本次更換／開始使用時間'));
+    if (item.usedAt && item.recordId) {
+      const editDate = node('button', 'record-time-button', `${dateFormat.format(new Date(item.usedAt))}　修改`);
+      editDate.type = 'button';
+      editDate.setAttribute('aria-label', `修改「${item.name}」本次更換時間`);
+      editDate.addEventListener('click', () => openRecordEditor(item.recordId));
+      dateCell.append(editDate);
+    } else dateCell.append(node('strong', '', '尚未記錄'));
+    dates.append(dateCell);
     const next = node('div', 'due-date', due ? `下次預計更換：${dateFormat.format(due)}` : '按「更換」記錄現在，開始計算下次日期。');
     const actions = node('div', 'card-actions');
     const replaceButton = node('button', 'primary-button', '更換');
@@ -100,8 +114,11 @@ function renderHistory() {
     const row = node('div', 'history-row');
     const left = node('div');
     left.append(node('strong', '', `${names.get(event.itemId) || '已封存項目'} · ${event.type === 'replace' ? '已更換' : '開始使用'}`));
-    if (event.type === 'replace') left.append(node('span', '', `新用品開始使用：${dateFormat.format(new Date(event.payload.usedAt))}`));
-    row.append(left, node('time', '', dateFormat.format(new Date(event.type === 'replace' ? event.payload.replacedAt : event.payload.usedAt))));
+    const edit = node('button', 'history-edit', `${dateFormat.format(new Date(event.payload.usedAt))}　修改`);
+    edit.type = 'button';
+    edit.setAttribute('aria-label', `修改「${names.get(event.itemId) || '已封存項目'}」這筆時間`);
+    edit.addEventListener('click', () => openRecordEditor(event.id));
+    row.append(left, edit);
     list.append(row);
   }
 }
@@ -140,6 +157,17 @@ function recordReplacement(item) {
   undoEvent = event;
   $('#undoText').textContent = `已記錄「${item.name}」更換時間：${dateFormat.format(new Date(now))}`;
   $('#undoNotice').classList.remove('hidden');
+}
+
+function openRecordEditor(recordId) {
+  const record = activeEvents(allEvents()).find(event => event.id === recordId && ['use', 'replace'].includes(event.type));
+  if (!record) return;
+  editingRecordId = record.id;
+  const item = deriveItems(allEvents()).find(value => value.id === record.itemId);
+  $('#editRecordTitle').textContent = `修改時間 · ${item?.name || '已封存項目'}`;
+  $('#editRecordTime').value = localInputValue(record.payload.usedAt);
+  $('#editRecordError').textContent = '';
+  $('#editRecordDialog').showModal();
 }
 
 function openItem(itemId = null) {
@@ -269,6 +297,7 @@ async function syncCloud() {
   } finally {
     syncBusy = false;
     render();
+    if (!syncError && accessToken && state.pending.length) queueMicrotask(syncCloud);
   }
 }
 
@@ -276,6 +305,19 @@ $('#settingsButton').addEventListener('click', () => $('#itemsDialog').showModal
 $('#closeItems').addEventListener('click', () => $('#itemsDialog').close());
 $('#addItem').addEventListener('click', () => openItem());
 $('#closeItem').addEventListener('click', () => $('#itemDialog').close());
+$('#closeEditRecord').addEventListener('click', () => $('#editRecordDialog').close());
+$('#editRecordForm').addEventListener('submit', event => {
+  event.preventDefault();
+  const record = activeEvents(allEvents()).find(value => value.id === editingRecordId && ['use', 'replace'].includes(value.type));
+  if (!record) { $('#editRecordError').textContent = '找不到這筆紀錄，請重新載入網頁。'; return; }
+  const date = new Date($('#editRecordTime').value);
+  if (Number.isNaN(date.getTime())) { $('#editRecordError').textContent = '請輸入有效的日期與時間。'; return; }
+  if (addEvent('correct', record.itemId, { targetId: record.id, occurredAt: date.toISOString() })) {
+    $('#editRecordDialog').close();
+    undoEvent = null;
+    $('#undoNotice').classList.add('hidden');
+  }
+});
 $('#undoButton').addEventListener('click', () => {
   if (!undoEvent) return;
   if (addEvent('void', undoEvent.itemId, { targetId: undoEvent.id })) {
@@ -285,11 +327,23 @@ $('#undoButton').addEventListener('click', () => {
 });
 $('#cloudSettingsButton').addEventListener('click', () => {
   $('#cloudError').textContent = '';
-  $('#sheetId').value = state.sheetId;
+  $('#copySheetStatus').textContent = '';
+  $('#sheetId').value = state.sheetId ? sheetUrl() : '';
   renderSync();
   $('#cloudDialog').showModal();
 });
 $('#closeCloud').addEventListener('click', () => $('#cloudDialog').close());
+$('#copySheetButton').addEventListener('click', async () => {
+  if (!state.sheetId) return;
+  try {
+    await navigator.clipboard.writeText(sheetUrl());
+    $('#copySheetStatus').textContent = '已複製試算表網址。';
+  } catch {
+    $('#sheetId').focus();
+    $('#sheetId').select();
+    $('#copySheetStatus').textContent = '無法自動複製；已選取網址，請手動複製。';
+  }
+});
 $('#createSheetButton').addEventListener('click', async () => {
   if (state.sheetId || syncBusy) return;
   if (!confirm('這會在目前選擇的 Google 帳號建立一份新的私人試算表。若你已有更換小記的試算表，請取消並貼入原表網址。確定要建立新表嗎？')) return;

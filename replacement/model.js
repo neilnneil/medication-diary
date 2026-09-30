@@ -33,6 +33,9 @@ export function validateEvent(event) {
     if (!validInstant(p.replacedAt) || !validInstant(p.usedAt)) throw new Error('更換日期格式不正確');
   } else if (event.type === 'void') {
     if (typeof p.targetId !== 'string' || !/^[\w-]{1,100}$/.test(p.targetId)) throw new Error('復原紀錄格式不正確');
+  } else if (event.type === 'correct') {
+    if (typeof p.targetId !== 'string' || !/^[\w-]{1,100}$/.test(p.targetId) ||
+        !validInstant(p.occurredAt)) throw new Error('更正紀錄格式不正確');
   } else {
     throw new Error('未知的紀錄種類');
   }
@@ -61,22 +64,34 @@ export function uniqueEvents(events) {
 export function activeEvents(events) {
   const unique = uniqueEvents(events);
   const voided = new Set(unique.filter(event => event.type === 'void').map(event => event.payload.targetId));
-  return unique.filter(event => event.type !== 'void' && !voided.has(event.id));
+  const corrections = new Map(unique.filter(event => event.type === 'correct' && !voided.has(event.id))
+    .map(event => [event.payload.targetId, event]));
+  return unique.filter(event => event.type !== 'void' && event.type !== 'correct' && !voided.has(event.id))
+    .map(event => {
+      const correction = corrections.get(event.id);
+      if (!correction || correction.itemId !== event.itemId || !['use', 'replace'].includes(event.type)) return event;
+      const occurredAt = correction.payload.occurredAt;
+      return { ...event, payload: event.type === 'replace'
+        ? { ...event.payload, replacedAt: occurredAt, usedAt: occurredAt }
+        : { ...event.payload, usedAt: occurredAt } };
+    });
 }
 
 export function deriveItems(events) {
-  const items = new Map(DEFAULT_ITEMS.map(item => [item.id, { ...item, usedAt: null, replacedAt: null }]));
+  const items = new Map(DEFAULT_ITEMS.map(item => [item.id, { ...item, usedAt: null, replacedAt: null, recordId: null }]));
   for (const event of activeEvents(events)) {
     let item = items.get(event.itemId);
     if (event.type === 'config') {
-      if (!item) item = { id: event.itemId, usedAt: null, replacedAt: null };
+      if (!item) item = { id: event.itemId, usedAt: null, replacedAt: null, recordId: null };
       Object.assign(item, event.payload);
       items.set(event.itemId, item);
     } else if (item && event.type === 'use') {
       item.usedAt = event.payload.usedAt;
+      item.recordId = event.id;
     } else if (item && event.type === 'replace') {
       item.replacedAt = event.payload.replacedAt;
       item.usedAt = event.payload.usedAt;
+      item.recordId = event.id;
     }
   }
   return [...items.values()].filter(item => item.active);
