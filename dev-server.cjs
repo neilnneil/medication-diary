@@ -10,7 +10,12 @@ const files = new Map([
   ['/model.js', ['model.js', 'text/javascript; charset=utf-8']],
   ['/sw.js', ['sw.js', 'text/javascript; charset=utf-8']],
   ['/manifest.webmanifest', ['manifest.webmanifest', 'application/manifest+json']],
-  ['/icon.svg', ['icon.svg', 'image/svg+xml']]
+  ['/icon.svg', ['icon.svg', 'image/svg+xml']],
+  ['/replacement/', ['replacement/index.html', 'text/html; charset=utf-8']],
+  ['/replacement/index.html', ['replacement/index.html', 'text/html; charset=utf-8']],
+  ['/replacement/styles.css', ['replacement/styles.css', 'text/css; charset=utf-8']],
+  ['/replacement/app.js', ['replacement/app.js', 'text/javascript; charset=utf-8']],
+  ['/replacement/model.js', ['replacement/model.js', 'text/javascript; charset=utf-8']]
 ]);
 
 const port = Number(process.env.MEDICATION_DIARY_PORT) || 8765;

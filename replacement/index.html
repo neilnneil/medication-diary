@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f3f5f0">
+  <meta name="description" content="貓砂與隱形眼鏡的使用及更換紀錄">
+  <title>更換小記</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script type="module" src="./app.js"></script>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark" aria-hidden="true">◌</span>更換小記</div>
+      <button id="settingsButton" class="text-button" type="button">管理項目</button>
+    </header>
+
+    <section class="hero">
+      <p class="eyebrow">每月更換紀錄</p>
+      <h1>貓砂與隱形眼鏡</h1>
+      <p>記下開始使用與實際更換的時間，依設定的週期算出下一次預計更換日。</p>
+    </section>
+
+    <section class="sync-card" aria-labelledby="syncTitle">
+      <div><h2 id="syncTitle">Google 試算表同步</h2><p id="syncStatus" role="status" aria-live="polite"></p></div>
+      <div class="sync-actions"><button id="connectButton" type="button">連結 Google</button><button id="cloudSettingsButton" type="button">同步設定</button></div>
+    </section>
+
+    <section aria-labelledby="itemsTitle">
+      <div class="section-heading"><h2 id="itemsTitle">目前使用中</h2><span id="itemCount"></span></div>
+      <div id="itemList" class="item-list"></div>
+    </section>
+
+    <section class="history-section" aria-labelledby="historyTitle">
+      <div class="section-heading"><h2 id="historyTitle">最近紀錄</h2></div>
+      <div id="historyList"></div>
+    </section>
+
+    <p class="footnote">預計日期由開始使用時間與設定週期計算；實際更換時間請自行記錄。雲端同步完成前，紀錄仍只在這台裝置上。</p>
+  </main>
+
+  <dialog id="recordDialog" class="sheet small-sheet">
+    <form id="recordForm">
+      <div class="sheet-header"><div><p class="eyebrow" id="recordEyebrow"></p><h2 id="recordTitle"></h2></div><button class="icon-button" id="closeRecord" type="button" aria-label="關閉">×</button></div>
+      <label id="replacementField" class="field hidden">實際更換日期與時間<input id="replacedAt" type="datetime-local"></label>
+      <label class="field">開始使用日期與時間<input id="usedAt" type="datetime-local" required></label>
+      <p class="hint" id="recordHint"></p>
+      <p id="recordError" class="form-error" role="alert"></p>
+      <button class="primary-button full" type="submit">儲存紀錄</button>
+    </form>
+  </dialog>
+
+  <dialog id="itemsDialog" class="sheet">
+    <div class="sheet-header"><div><p class="eyebrow">週期設定</p><h2>管理項目</h2></div><button class="icon-button" id="closeItems" type="button" aria-label="關閉">×</button></div>
+    <div id="settingsItems"></div>
+    <button id="addItem" class="primary-button full" type="button">＋ 新增項目</button>
+  </dialog>
+
+  <dialog id="itemDialog" class="sheet small-sheet">
+    <form id="itemForm">
+      <div class="sheet-header"><div><p class="eyebrow">項目設定</p><h2 id="itemDialogTitle"></h2></div><button class="icon-button" id="closeItem" type="button" aria-label="關閉">×</button></div>
+      <label class="field">名稱<input id="itemName" maxlength="60" required autocomplete="off" placeholder="例如：濾水器濾芯"></label>
+      <div class="interval-fields"><label class="field">每隔<input id="intervalValue" type="number" min="1" max="365" value="1" required></label><label class="field">單位<select id="intervalUnit"><option value="months">個月</option><option value="weeks">週</option><option value="days">天</option></select></label></div>
+      <p id="itemError" class="form-error" role="alert"></p>
+      <button class="primary-button full" type="submit">儲存項目</button>
+      <button id="archiveItem" class="danger-button full hidden" type="button">封存此項目</button>
+    </form>
+  </dialog>
+
+  <dialog id="cloudDialog" class="sheet small-sheet">
+    <form id="cloudForm">
+      <div class="sheet-header"><div><p class="eyebrow">私人雲端紀錄</p><h2>Google 試算表</h2></div><button class="icon-button" id="closeCloud" type="button" aria-label="關閉">×</button></div>
+      <p class="hint">首次使用，請依下方說明建立 Google OAuth 網頁用戶端。此處只需填「用戶端 ID」，請勿填用戶端密鑰。</p>
+      <label class="field">OAuth 用戶端 ID<input id="clientId" type="text" autocomplete="off" spellcheck="false" placeholder="...apps.googleusercontent.com"></label>
+      <label class="field">試算表網址或 ID（首次建立可留空）<input id="sheetId" type="text" autocomplete="off" spellcheck="false" placeholder="首次連結後自動建立"></label>
+      <p class="hint">換手機時，填入原本的試算表網址或 ID，便能讀回紀錄。</p>
+      <p id="cloudError" class="form-error" role="alert"></p>
+      <button class="primary-button full" type="submit">儲存同步設定</button>
+      <a id="sheetLink" class="sheet-link hidden" target="_blank" rel="noopener noreferrer">開啟我的試算表 ↗</a>
+      <details class="setup-help"><summary>首次設定教學</summary><ol><li>在 Google Cloud 建立專案並啟用 Google Sheets API。</li><li>設定 OAuth 同意畫面；個人 Google 帳號選「外部」，將自己的 Google 帳號加入測試使用者。</li><li>建立「網頁應用程式」OAuth 用戶端，在「已授權的 JavaScript 來源」加入 <code>https://neilnneil.github.io</code>。</li><li>將用戶端 ID 貼到上方，儲存後按「連結 Google」。首次連結會自動在你的 Google 雲端硬碟建立試算表。</li></ol><p>若要在本機測試，可另外加入 <code>http://localhost:8765</code> 作為授權來源。</p></details>
+    </form>
+  </dialog>
+</body>
+</html>
